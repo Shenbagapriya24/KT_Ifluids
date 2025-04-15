@@ -1,0 +1,92 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SAM Template for Serverless ToDO List v1 - Data store
+
+Globals:
+  Function:
+    Runtime: python3.11
+    MemorySize: 128
+    Timeout: 100
+    Tracing: Active
+
+Resources:
+  TodosTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: !Sub  ${AWS::StackName}-Todos
+        AttributeDefinitions:
+          - AttributeName: task_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: task_id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+  TodoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/api/todo.lambda_handler
+      Description: Handler for all users related operations
+      Environment:
+        Variables:
+          TodosTable: !Ref TodosTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TodosTable
+      Tags:
+        Stack: !Sub "${AWS::StackName}"
+      Events:
+        GetTodoEvent:
+          Type: Api
+          Properties:
+            Path: /todos
+            Method: get
+            RestApiId: !Ref RestAPI
+        PutTodoEvent:
+          Type: Api
+          Properties:
+            Path: /todos
+            Method: post
+            RestApiId: !Ref RestAPI
+        UpdateTodoEvent:
+          Type: Api
+          Properties:
+            Path: /todos/{task_id}
+            Method: put
+            RestApiId: !Ref RestAPI
+        GetTodoWithIdEvent:
+          Type: Api
+          Properties:
+            Path: /todos/{task_id}
+            Method: get
+            RestApiId: !Ref RestAPI
+        DeleteTodoEvent:
+          Type: Api
+          Properties:
+            Path: /todos/{task_id}
+            Method: delete
+            RestApiId: !Ref RestAPI
+  RestAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      TracingEnabled: true
+      Tags:
+        Name: !Sub "${AWS::StackName}-API"
+        Stack: !Sub "${AWS::StackName}"    
+Outputs:
+  TodosTable:
+      Description: DynamoDB Todos table
+      Value: !Ref TodosTable
+
+  TodoFunction:
+    Description: "Lambda function used to perform actions on the todo list"
+    Value: !Ref TodoFunction
+
+  APIEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${RestAPI}.execute-api.${AWS::Region}.amazonaws.com/Prod"
